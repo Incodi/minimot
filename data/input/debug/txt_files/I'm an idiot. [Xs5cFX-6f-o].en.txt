@@ -1,0 +1,459 @@
+monke hey what's going on guys this is
+Andrew chicken and welcome back to
+another video I have had a very
+stressful day and it's because of my own
+undoing I am suffering the consequences
+of my actions and uh yeah I'm a total
+fool so I want to basically just tell
+you the story of what I've gone through
+with my computer recently and uh yeah
+cuz it's kind of a silly story it
+affects my YouTube and streaming of
+course uh almost made things a heck of a
+lot worse but luckily there is a sort of
+happy ending and yeah I'm not super
+focused on the gameplay here I'm just
+going to be playing some bomb King
+because I can kind of just play him uh
+and not really worry too much and focus
+more on the actual story of what
+happened so if you've been following my
+twitch Channel specifically uh then you
+probably know that I have had a lot of
+technical problems with my computer
+going back many many months and every
+now and then I would complain about said
+problems on stream and sometimes
+especially recently those uh technical
+issues would actually surface and rear
+their ugly head on my stream for example
+actually the past few streams now I've
+had what I deem the black screen
+phenomenon where my screen will go
+completely black I'll hear a disconnect
+sound from Windows and then I'll hear a
+reconnect sound of a few moments later
+the screens will come back on and
+usually a program will have crashed and
+when it's happened on stream paladins
+would crash and then OBS would get all
+kinds of screwed up and uh yeah it's you
+know a bit of a problem so yeah uh that
+is very annoying and I've also had
+issues prior to this with uh my software
+is on my computer just crashing period
+right like I would open blender try and
+do a render crash open Path of Exile try
+and play that crash at one point it got
+really bad to the point where Warframe
+itself all right a game that is
+notoriously well optimized uh was
+crashing when I would try to open it so
+I knew there was some sort of serious
+problem and this Warframe crash in
+particular that I'm talking about what
+happening almost a year ago now at this
+point and I didn't really know what was
+causing it I was literally tearing my
+hair out over this issue okay maybe not
+literally but uh I like to think it's
+why my hairline is terrible
+and um yeah this uh I I tried a whole
+bunch of things I tried messing with the
+GPU eventually I did find a solution
+which is to underclock my CPU I
+installed Intel's XTU or extreme tuning
+utility which is a product by Intel that
+allows you to either underclock or
+overclock your PC am I going to die here
+oh boy okay I guess I'll just heal up
+out of combat man oh where is our healer
+at right now I am so out of position H
+anyways
+now yeah that solved a lot of the uh
+issues for the most part there were
+still some stability problems and
+notably the black screen phenomenon did
+sometimes happen even with the
+underclock uh but yeah eventually you
+know this July uh August relatively
+right around that time uh is when we
+found out that you know or I guess when
+it went mainstream that intel was
+selling uh CPUs that ended up being
+defective right they were unstable they
+were
+crashing oh boy and yeah that was a big
+Fiasco right and a lot of people have
+suffered the results of that and I am
+one of those people who ended up being
+affected by these faulty CPUs I have a
+13th gen Intel CPU it came with my
+computer was a pre-made cuz I have
+absolutely no idea how to make a
+computer by myself and that's actually
+what we're going to get to later that's
+the main focus of what happened today
+um but yeah so I realized that yeah
+underclock and my CPU was actually a
+solution other people had come to to try
+and solve these problems in the interim
+and that intel was working on a bios
+update so at that point I realized okay
+I probably need to switch my CPU around
+I I need to either switch to AMD or
+maybe try and find an Intel processor
+that's
+stable and in the meantime I was waiting
+for the BIOS update I eventually
+downloaded the BIOS update plugged it in
+right did all the BIOS updating things
+the hacking Wizardry okay it's not that
+complicated and uh yeah it ended up
+improving Things No Doubt out but the
+black screen phenomenon was still
+happening and as again you noticed if
+you've been on my twitch Channel
+recently it got relatively worse it's
+happening a lot more on screen
+now and so I decided to go ahead and
+purchase a 12th gen Intel CPU which was
+not affected by the stability problems
+to see if I could socket that in and
+have you know yes a slightly worse CPU
+but a CPU that would be stable and uh
+the reason Reas I decided to go down
+that route originally was because if I
+wanted to switch to AMD after
+researching and talking with friends who
+know more about this stuff than me I
+realized I would have to replace my
+entire motherboard for that and
+replacing the motherboard is not fun
+that that is basically taking your
+entire computer art and then apart and
+then putting it back together again like
+that's that's not something I wanted to
+do I wanted to avoid that at all cost so
+downgrading seemed like a reasonable
+option and I checked and made sure that
+the 12 gen would be compatible with my
+motherboard and it seem like it would be
+fine so I got the 12th gen CPU and I got
+some thermal paste so I could actually
+you know make sure it was cooled
+properly and all that stuff finally
+arrived and all of it was together today
+uh which is the 1st of October when I'm
+recording this video you'll see this on
+the second of
+October and
+uh I I suck at Hardware Hardware is
+something totally beyond my uh my my
+skills right my my dep I like I'm out of
+my depth when I'm working with that I've
+done a few things hardw related in the
+past I have installed new RAM sticks on
+my computer a few times actually and I
+also installed a hard drive and both of
+those were relatively easy processes
+although I was still nervous I would
+break something through the entire uh
+course of doing it and I did a lot of
+research I watched many many videos
+installing CPUs and it all looked like a
+pretty straightforward process so I
+figured okay I might as well take a
+crack at it maybe I can save some money
+and uh not have someone do this for me
+uh I was very scared of doing that with
+the whole motherboard switching process
+and uh if I ever were to switch out the
+motherboard I probably would just pay
+someone to do for me at that point but
+uh just a CPU transfer it seemed simple
+enough so this morning I cracked open my
+computer case and I went ahead and took
+the coolant fan off that was easy I went
+ahead and unclamped uh the Hat
+and pull the CPU out and that was all
+fine and then I went to switch in the
+new CPU the 12th gen CPU and I was so
+nervous because like I said I know
+nothing about hardware and I'm working
+with thousands of dollars of equipment
+here I have a 490 that alone is at least
+like a grand to two grand I don't know I
+don't remember how much of those are
+going for but it's a lot so I didn't
+want to break anything and I was
+actually physically sweating because of
+how anxious I was like this is something
+that's always been a little bit daunting
+to
+me
+and yeah so I inevitably just put the
+CPU into the uh the computer I put the
+thermal paste on ended up putting too
+much thermal paste on actually but
+better too much than not enough right
+and put everything back together
+reassemble it went to turn it
+on it didn't turn on will not die not
+yet it didn't turn on oh that was so
+scary uh and the way it didn't turn on
+was basically I plugged it in pressed
+the power button and not a thing
+happened not at all uh double check that
+I actually flipped the switch on my
+power supply and everything was plugged
+in properly it was so yeah that wasn't
+working that was scary but that's not
+the truly most scary part of this the
+most scary thing by far is I decided
+okay well this isn't working let me put
+back in the 13th gen and make sure that
+I haven't Royal screwed up the computer
+somehow right the 13th gen should be
+able to work it's the original CPU that
+was in there my computer was just
+working I was watching videos with lunch
+uh before I uh before I uh took it out
+right so it was
+fine so I took the 12th gen out but the
+13th gen back in put on a tiny little
+bit of thermal past and
+uh it didn't start it didn't boot it
+didn't boot I was so terrified dude I
+was like oh my God I just royally
+screwed up this multi thousand PC and
+I'm not going to be able to do my job
+which is YouTube and streaming right
+this is not just my hobby this is like I
+I make money off this so oh crap what
+what the heck am I going to
+do and yeah I was just freaking out so
+at that point I decided to talk with uh
+one of the friends who I uh was uh
+conferring with uh oh
+hello jenno stop it I'm trying to tell a
+story oh God I went and talked with one
+my friends uh conferred with him showed
+some pictures and he had some hypotheses
+but you know there's only so much you
+can do from some grainy photos on a
+crappy Android
+phone uh not that Android phones are
+crappy I just have a crappy Android
+phone you know
+um but yeah he he he hypothesized that I
+might have like royally screwed things
+up and so I decided to uh look for some
+tech stores near me uh some tech repair
+stores called up a guy and eventually I
+ended up taking my computer into a local
+shop here and the man I worked with was
+an absolute gentleman he was fantastic I
+left a five star review like he he did a
+fantastic job but uh yeah oh hello
+okay eventually he suss out the problem
+and we finally get to the part where I
+feel like an absolute
+colossal Monumental
+gargantuen idiot
+so when you put in a CPU into the
+computer socket on your motherboard
+there's a specific
+alignment there's a for Intel CPUs and
+motherboards there's a triangle which
+indicates how you're supposed to align
+it there's a triangle on the motherboard
+and then a matching triangle on the
+socket and you're supposed to make it so
+those triangles are on the same
+corner and I'm completely inexperienced
+again I'm totally out of my depth on
+this so I thought I saw a triangle when
+I was slotting in the
+CPU that was not the right triangle and
+in hindsight I probably should have
+realized that but you know hindsight is
+2020 and at the time I was so nervous
+that like I was just trying to spend as
+little time in the computer case as
+possible because I was so scared of
+breaking something so yeah turns out I
+had put both chips in upside
+down you know that that's kind of a
+rookie mistake and that's also kind of a
+big
+problem no
+okay
+so yeah that's a massive blunder and no
+wonder my computer was not turning off
+and here's where it gets I guess a
+little bit sad so uh the guy who was
+working there he uh he basically cleaned
+up all the stuff cleaned off all the
+thermal paste made sure everything was
+pristine uh there was also somehow like
+a a bit of paste or dust or something
+got into the actual socket itself
+cleaned that off and he put the 12th gen
+in right side this time he put it in the
+the right
+way and it didn't turn on the computer
+actually we got more progress than we
+originally had um basically when I put
+the 12th gen in the first time upside
+down obviously it didn't even turn off
+nothing happened no fans turn on no
+lights turn on nothing this time the
+light on my GPU turned on not the lights
+on my fans like the LED stuff just the
+light on the GPU it turned on and the
+fans turned on but the lights didn't
+turn on and it didn't Boot and so we
+decided okay might be a busted chip I
+hypothesized maybe there's something to
+do with the BIOS settings that's not
+allowing to boot but uh basically we
+ended up swapping that back to the
+original chip that I had in the computer
+put it in right side up uh gave the
+computer good dusting as well and uh it
+turned on it booted and that's how I'm
+able to record this video for you right
+now um
+yeah so yeah all is back to normal all
+is back to the way it was before I
+decided to attempt to do brain surgery
+on my computer while being less than an
+amateur at Hardware uh
+assembly
+yeah and so you know obviously I'm so
+grateful that my computer is still
+working right I played a few hours of a
+relatively Hardware intensive video game
+just to make sure everything was running
+fine and it seems to be running fine and
+we'll see you in tomorrow's stream if
+the black screen phenomenon happens
+hopefully it doesn't maybe uh taking the
+chip out and then putting it back in
+with uh a Fresh coat of thermal paint
+and making sure the computer was all
+nicely dusted and stuff and just extra
+clean maybe that'll somehow resolve the
+issue I'm highly doubtful that that's
+the case but maybe it'll feel a little
+bit better I don't
+know but yeah uh regardless I still have
+a faulty 13th gen Intel CPU in my
+computer and so if I still notice that
+there are stability problems over the
+next few weeks uh I guess I'm going to
+have to try and find a different way to
+fix this now if you heard what I just
+said about how the 12th gen CPU didn't
+work um despite it being aligned the
+proper way and you might have a
+hypothesis as to why that might be the
+case then I'd love to hear your thoughts
+on that in the comments section down
+below but yeah my other idea was to
+switch to AMD
+uh but again that you know has a whole
+lot of hassle I have to buy a new
+motherboard I have to buy a new chip and
+I have to pay for the services to put it
+together because holy crap I'm not doing
+that myself so it's quite the pickle and
+it all started because I decided to
+splurge and buy a really nice computer
+and everything in this computer has been
+fantastic except that stinking CPU which
+has caused me over a year of headaches
+so yeah it's not a great situation to be
+in but at least I still still have a
+functioning computer at the end of the
+day even if it's not totally uh Flawless
+totally stable and uh yeah I'm just
+going to have to do more research and
+see where to go from there but I thought
+I'd share that story because it could
+have ended very differently my idiot
+blunder might have cost me my
+motherboard it could have been broken
+Beyond repair and uh I yeah I might have
+had to take a break from uploading
+videos and streaming until I get all
+that sorted out uh or I would have had
+to upload for my laptop like oh my God
+it could have been a a nightmare it
+could have really seriously negatively
+affected the channel so I suppose the
+moral of the story that I have learned
+is one if you are going to attempt
+something like this and you feel like
+you're in over your head take your
+freaking time and double triple check to
+make sure you got everything right even
+if you're super nervous and super scared
+take that extra time to make sure you
+did it right and also I hear a lot of
+talk about oh building a computer yeah
+you can do that that's something that
+Reg old consumer can do and you know
+what if you do enough Research into it
+you probably can but it's still quite a
+uh a difficult and stressful thing and
+if you're someone like me who doesn't
+know much about hardware and who has a
+very Juiced up computer and you have a
+problem with it or you want to switch
+out a component for some components it
+might just be worth it to actually pay
+someone who knows more about it than you
+to do it for you so that way you don't
+screw it up and have to deal with all
+the stress and uh the tearing your hair
+out of realizing you made a mistake so
+lots of morals to be learned from that
+story oh my gosh it was quite a uh a
+difficult thing to go through but uh
+yeah I should be able to stream
+Wednesday which I guess is today when
+you're watching this video and yeah
+we'll just go from there so thank you
+guys for watching if you enjoyed this uh
+very questionable story then make sure
+to drop a like on the video subscribe if
+you're new around here and uh if you
+want to support my e towards fixing my
+Hardware uh then you can support the
+channel in a number of ways you can
+become a member by joining the uh
+YouTube channel down below choose your
+price and get different rewards for the
+different price points you can also go
+to the Nexus nexus. andrewchicken if you
+were thinking of buying crystals you can
+buy crystals there and support the
+channel directly in the process or I
+don't know if you just want to give a
+donation I do have a tips page uh which
+you can find on my twitch I believe do I
+actually have it on my uh main channel
+in the links I should I don't remember
+if I do
+let's go check guys this
+is uh I do yeah look at that there's a
+little tips page uh right here boom so
+yeah if you if you just want to leave a
+tip you can do that although that is
+extremely generous so um yeah all of
+your support is greatly appreciated but
+uh with all that being said thank you
+guys for watching I will see you all
+next time peace out
