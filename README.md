@@ -8,6 +8,6 @@ The downloader application downloads video subtitles and video metadata from a c
 
 This data can be used in the analyzer.
 
-I am currently working on the analyzer tool and have not commited that yet.
+I am currently working on the analyzer tool and is not in this repository. A mostly-working version is not public yet.
 
 The debug tool helps in finding missing subtitle files in case there is an error in the downloader.
