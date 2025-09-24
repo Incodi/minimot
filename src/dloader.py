@@ -5,7 +5,6 @@ import os
 import re
 import json
 from datetime import datetime
-import sys
 import threading
 import queue
 
@@ -24,6 +23,15 @@ class SubDownloader(tk.Toplevel):
             column=0, row=0, sticky=tk.W, pady=(0, 5))
         self.url_entry = ttk.Entry(self.mainframe, width=100)
         self.url_entry.grid(column=0, row=1, sticky=(tk.W, tk.E), pady=(0, 10))
+        
+        # Add checkbox for metadata-only update
+        self.metadata_only_var = tk.BooleanVar()
+        self.metadata_only_checkbox = ttk.Checkbutton(
+            self.mainframe, 
+            text="Update metadata only (don't download new subtitles)", 
+            variable=self.metadata_only_var
+        )
+        self.metadata_only_checkbox.grid(column=0, row=2, sticky=tk.W, pady=(5, 0))
         
         self.download_button = ttk.Button(self.mainframe, text="Download Subtitles", 
                                        command=self.start_download)
@@ -62,6 +70,12 @@ class SubDownloader(tk.Toplevel):
         self.text_output.delete(1.0, tk.END)
         self.total_downloaded = 0
         
+        # Update button text based on mode
+        if self.metadata_only_var.get():
+            self.download_button.config(text="Updating Metadata...")
+        else:
+            self.download_button.config(text="Downloading...")
+        
         self.download_thread = threading.Thread(
             target=self.download_subtitles,
             daemon=True
@@ -74,11 +88,31 @@ class SubDownloader(tk.Toplevel):
             self.message_queue.put(("error", "Please enter a YouTube channel or playlist URL!"))
             return
         
+        metadata_only = self.metadata_only_var.get()
+        
         try:
             identifier = self.extract_identifier_from_url(url)
             channel_name = self.get_channel_name_from_url(url)
             project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
             base_dir = os.path.join(project_root, "data", "input", identifier)
+            
+            # Check if this channel/playlist has been downloaded before
+            if metadata_only:
+                if not os.path.exists(base_dir) or not os.path.exists(os.path.join(base_dir, "metadata.json")):
+                    self.message_queue.put(("error", f"No previous downloads found for this channel/playlist. Directory: {base_dir}"))
+                    return
+                
+                # Load existing metadata to get video IDs
+                existing_video_ids = self.get_existing_video_ids(base_dir)
+                if not existing_video_ids:
+                    self.message_queue.put(("error", "No existing videos found in metadata.json"))
+                    return
+                
+                self.message_queue.put(("status", f"Updating metadata for {len(existing_video_ids)} existing videos..."))
+                self.update_metadata_only(existing_video_ids, base_dir, channel_name)
+                return
+            
+            # Normal subtitle download mode
             vtt_dir = os.path.join(base_dir, "vtt_files")
             os.makedirs(vtt_dir, exist_ok=True)
             
@@ -93,7 +127,7 @@ class SubDownloader(tk.Toplevel):
                 "--convert-subs", "vtt",
                 "--print-json",
                 "--download-archive", os.path.join(base_dir, "archive.txt"),
-                "--retries", "3",
+                #"--retries", "3",
                 #"--cookies-from-browser", "firefox", # to get members only videos
                 #"--extractor-args", "youtubetab:skip=authcheck",
                 "--no-warnings",
@@ -129,16 +163,31 @@ class SubDownloader(tk.Toplevel):
                     video_title = video_data.get('title', '')
                     vtt_filename = f"{video_title} [{video_id}].en.vtt"
                     
+                    # Extract view count and like count
+                    view_count = video_data.get('view_count', 0)
+                    like_count = video_data.get('like_count', 0)
+                    
+                    # Format numbers for display (optional - you can remove this if you want raw numbers)
+                    view_count_formatted = self.format_count(view_count) if view_count else "N/A"
+                    like_count_formatted = self.format_count(like_count) if like_count else "N/A"
+                    
                     new_entry = {
                         'id': video_id,
                         'title': video_title,
                         'url': video_data.get('webpage_url', ''),
                         'upload_date': video_data.get('upload_date', ''),
                         'duration': video_data.get('duration', ''),
+                        'view_count': view_count,
+                        'view_count_formatted': view_count_formatted,
+                        'like_count': like_count,
+                        'like_count_formatted': like_count_formatted,
+                        'dislike_count': video_data.get('dislike_count', 0),  # Often not available due to YouTube changes
+                        'comment_count': video_data.get('comment_count', 0),
                         'timestamp': datetime.now().isoformat(),
                         'channel_name': channel_name or video_data.get('channel', ''),
                         'channel_id': video_data.get('channel_id', ''),
-                        'channel_url': video_data.get('channel_url', '')
+                        'channel_url': video_data.get('channel_url', ''),
+                        'subscriber_count': video_data.get('channel_follower_count', 0)  # Channel subscriber count
                     }
                     
                     self.update_metadata_file(base_dir, new_entry)
@@ -146,7 +195,15 @@ class SubDownloader(tk.Toplevel):
                     
                     progress = (self.total_downloaded / self.download_limit) * 100
                     self.message_queue.put(("progress", progress))
-                    self.message_queue.put(("log", f"Downloaded: {video_title}"))
+                    
+                    # Enhanced log message with view and like counts
+                    log_message = f"Downloaded: {video_title}"
+                    if view_count:
+                        log_message += f" | Views: {view_count_formatted}"
+                    if like_count:
+                        log_message += f" | Likes: {like_count_formatted}"
+                    
+                    self.message_queue.put(("log", log_message))
                     
                     if self.total_downloaded >= self.download_limit:
                         process.terminate()
@@ -158,6 +215,7 @@ class SubDownloader(tk.Toplevel):
             if self.total_downloaded > 0:
                 self.message_queue.put(("status", f"Downloaded {self.total_downloaded} subtitles to {identifier} folder!"))
                 self.message_queue.put(("log", f"\nMetadata saved to: {os.path.join(base_dir, 'metadata.json')}"))
+                self.message_queue.put(("log", f"Metadata includes: title, URL, upload date, duration, view count, like count, comment count, and channel info"))
             else:
                 error = process.stderr.read()
                 self.message_queue.put(("error", f"No subtitles downloaded. Error: {error[:200]}..."))
@@ -166,6 +224,21 @@ class SubDownloader(tk.Toplevel):
             self.message_queue.put(("error", f"An unexpected error occurred: {str(e)}"))
         finally:
             self.message_queue.put(("done", None))
+    
+    def format_count(self, count):
+        """Format large numbers with K, M, B suffixes for better readability"""
+        if count is None:
+            return "N/A"
+        
+        count = int(count)
+        if count >= 1_000_000_000:
+            return f"{count / 1_000_000_000:.1f}B"
+        elif count >= 1_000_000:
+            return f"{count / 1_000_000:.1f}M"
+        elif count >= 1_000:
+            return f"{count / 1_000:.1f}K"
+        else:
+            return str(count)
     
     def process_queue(self):
         try:
@@ -183,6 +256,7 @@ class SubDownloader(tk.Toplevel):
                     messagebox.showerror("Error", msg_content)
                 elif msg_type == "done":
                     self.download_button.config(state=tk.NORMAL)
+                    self.download_button.config(text="Download Subtitles")  # Reset button text
                     break
                     
         except queue.Empty:
@@ -228,6 +302,140 @@ class SubDownloader(tk.Toplevel):
                 return match.group(1)
         return None
     
+    def get_existing_video_ids(self, base_dir):
+        """Get list of video IDs from existing metadata.json"""
+        json_file = os.path.join(base_dir, "metadata.json")
+        try:
+            if os.path.exists(json_file):
+                with open(json_file, 'r', encoding='utf-8') as f:
+                    metadata = json.load(f)
+                    return [item['id'] for item in metadata if 'id' in item]
+            return []
+        except Exception:
+            return []
+    
+    def update_metadata_only(self, video_ids, base_dir, channel_name):
+        """Update metadata for existing videos without downloading subtitles"""
+        try:
+            updated_count = 0
+            total_videos = len(video_ids)
+            
+            # Process videos in batches to avoid overwhelming yt-dlp
+            batch_size = 50
+            for i in range(0, total_videos, batch_size):
+                if self.stop_event.is_set():
+                    break
+                
+                batch_ids = video_ids[i:i+batch_size]
+                batch_urls = [f"https://www.youtube.com/watch?v={video_id}" for video_id in batch_ids]
+                
+                # Create yt-dlp command for metadata extraction only
+                command = [
+                    "yt-dlp",
+                    "--skip-download",
+                    "--print-json",
+                    #"--retries", "3",
+                    "--no-warnings",
+                    "--extractor-args", "youtube:player-client=default,mweb;po_token=bgutil:http-1.2.2"
+                ] + batch_urls
+                
+                process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                
+                while True:
+                    if self.stop_event.is_set():
+                        process.terminate()
+                        break
+                    
+                    line = process.stdout.readline()
+                    if not line and process.poll() is not None:
+                        break
+                    
+                    try:
+                        video_data = json.loads(line)
+                        if '_type' in video_data and video_data['_type'] == 'playlist':
+                            continue
+                        
+                        video_id = video_data.get('id', '')
+                        video_title = video_data.get('title', '')
+                        
+                        # Extract updated metrics
+                        view_count = video_data.get('view_count', 0)
+                        like_count = video_data.get('like_count', 0)
+                        view_count_formatted = self.format_count(view_count) if view_count else "N/A"
+                        like_count_formatted = self.format_count(like_count) if like_count else "N/A"
+                        
+                        updated_entry = {
+                            'id': video_id,
+                            'title': video_title,
+                            'url': video_data.get('webpage_url', ''),
+                            'upload_date': video_data.get('upload_date', ''),
+                            'duration': video_data.get('duration', ''),
+                            'view_count': view_count,
+                            'view_count_formatted': view_count_formatted,
+                            'like_count': like_count,
+                            'like_count_formatted': like_count_formatted,
+                            'dislike_count': video_data.get('dislike_count', 0),
+                            'comment_count': video_data.get('comment_count', 0),
+                            'timestamp': datetime.now().isoformat(),
+                            'channel_name': channel_name or video_data.get('channel', ''),
+                            'channel_id': video_data.get('channel_id', ''),
+                            'channel_url': video_data.get('channel_url', ''),
+                            'subscriber_count': video_data.get('channel_follower_count', 0)
+                        }
+                        
+                        self.update_existing_metadata(base_dir, updated_entry)
+                        updated_count += 1
+                        
+                        # Update progress
+                        progress = (updated_count / total_videos) * 100
+                        self.message_queue.put(("progress", progress))
+                        
+                        # Log update
+                        log_message = f"Updated: {video_title}"
+                        if view_count:
+                            log_message += f" | Views: {view_count_formatted}"
+                        if like_count:
+                            log_message += f" | Likes: {like_count_formatted}"
+                        
+                        self.message_queue.put(("log", log_message))
+                        
+                    except json.JSONDecodeError:
+                        continue
+            
+            if updated_count > 0:
+                self.message_queue.put(("status", f"Updated metadata for {updated_count} videos!"))
+                self.message_queue.put(("log", f"\nMetadata updated in: {os.path.join(base_dir, 'metadata.json')}"))
+            else:
+                self.message_queue.put(("error", "No metadata was updated"))
+                
+        except Exception as e:
+            self.message_queue.put(("error", f"Error updating metadata: {str(e)}"))
+    
+    def update_existing_metadata(self, base_dir, updated_entry):
+        """Update existing entry in metadata.json"""
+        json_file = os.path.join(base_dir, "metadata.json")
+        
+        try:
+            metadata = []
+            if os.path.exists(json_file):
+                with open(json_file, 'r', encoding='utf-8') as f:
+                    metadata = json.load(f)
+            
+            # Find and update the existing entry
+            for i, item in enumerate(metadata):
+                if item.get('id') == updated_entry['id']:
+                    # Keep original timestamp if it exists, but update the rest
+                    original_timestamp = item.get('original_timestamp', item.get('timestamp', ''))
+                    updated_entry['original_timestamp'] = original_timestamp
+                    metadata[i] = updated_entry
+                    break
+            
+            with open(json_file, 'w', encoding='utf-8') as f:
+                json.dump(metadata, f, indent=2)
+                
+        except Exception as e:
+            self.message_queue.put(("error", f"Could not update metadata file: {str(e)}"))
+            
     def update_metadata_file(self, base_dir, new_entry):
         json_file = os.path.join(base_dir, "metadata.json")
         
