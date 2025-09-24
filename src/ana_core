@@ -1,0 +1,619 @@
+import os, re, json
+from collections import defaultdict
+from datetime import datetime
+from searchhelper import (
+    hms_to_seconds, seconds_to_hms, is_valid_date, process_search_query, 
+    matches_search_terms, extract_video_id
+)
+
+
+ #  holy moly this is complex
+
+
+class anacore:
+    def __init__(self):
+        self.all_words_in_filtered_set = defaultdict(int)
+        self.unique_words_in_filtered_set = set()
+        self.global_word_ranks = {}
+    
+    def convert_vtt_files(self, handle, use_stopwords=False, no_punctuation=False):
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        vtt_dir = os.path.join(root, "data", "input", handle, "vtt_files")
+        txt_dir = os.path.join(root, "data", "input", handle, "txt_files")
+        
+        if not os.path.exists(vtt_dir):
+            raise FileNotFoundError(f"Directory not found: {vtt_dir}")
+
+        # Load metadata
+        meta_file = os.path.join(root, "data", "input", handle, "metadata.json")
+        metadata = []
+        if os.path.exists(meta_file):
+            with open(meta_file, 'r', encoding='utf-8') as f:
+                metadata = json.load(f)
+        
+        os.makedirs(txt_dir, exist_ok=True)
+        
+        vtt_files = [f for f in os.listdir(vtt_dir) if f.endswith('.vtt')]
+        if not vtt_files:
+            raise FileNotFoundError(f"No VTT files found in {vtt_dir}")
+        
+        # Load stopwords if user wants
+        stopwords = set()
+        if use_stopwords:
+            stopwords_path = os.path.join(root, "data", "input", "stopwords.txt")
+            if os.path.exists(stopwords_path):
+                with open(stopwords_path, 'r', encoding='utf-8') as f:
+                    stopwords.update(line.strip().lower() for line in f 
+                                   if line.strip() and not line.startswith('#'))
+        
+        txt_files = []
+        for vtt_file in vtt_files:
+            txt_file = self.convert_single_vtt(
+                os.path.join(vtt_dir, vtt_file), 
+                os.path.join(txt_dir, f"{os.path.splitext(vtt_file)[0]}.txt"),
+                stopwords, no_punctuation
+            )
+            txt_files.append(txt_file)
+        
+        return {
+            'txt_files': txt_files,
+            'vtt_files': [os.path.join(vtt_dir, f) for f in vtt_files],
+            'metadata': metadata
+        }
+    
+    def convert_single_vtt(self, vtt_path, txt_path, stopwords, no_punctuation):
+        """Convert a single VTT file to TXT"""
+        with open(vtt_path, 'r', encoding='utf-8') as f:
+            lines = f.readlines()
+        
+        cleaned = []
+        prev = None
+        
+        for line in lines:
+            line = line.strip()
+            
+            # Skip metadata and timestamps
+            if (not line or line == "WEBVTT" or 
+                line.startswith(("Kind:", "Language:", "NOTE")) or 
+                re.match(r'^\d{2}:\d{2}:\d{2}\.\d{3}.*$', line)):
+                continue
+            
+            # Clean up the line
+            line = line.replace('[&nbsp;__&nbsp;]', 'FUCK')
+            line = re.sub(r'\[(?!&nbsp;__&nbsp;).*?\]', '', line)
+            line = re.sub(r'<.*?>|align:start position:0%|&gt;&gt;|>>|&gt;|<\d{2}:\d{2}:\d{2}\.\d{3}>', '', line)
+            line = re.sub(r'^\s*[A-Z]+\s*\d*\s*:\s*', '', line)
+            
+            if no_punctuation:
+                line = re.sub(r'[^\w\s\']', '', line)
+                
+            if not line:
+                continue
+            
+            # Remove stopwords if requested
+            if stopwords:
+                words = [word for word in line.split() if word.lower() not in stopwords]
+                line = ' '.join(words)
+                if not line:
+                    continue
+            
+            # Avoid duplicates
+            if line != prev:
+                cleaned.append(line)
+                prev = line
+        
+        with open(txt_path, 'w', encoding='utf-8') as f:
+            f.write("\n".join(cleaned))
+        
+        return txt_path
+    
+    def run_specific_analysis(self, txt_files, video_metadata, target_expression, filters, sort_options):
+        """Run analysis for specific word searches"""
+        terms = process_search_query(target_expression, "specific")
+        patterns = terms['include'] + terms['wildcards'] + terms['partials']
+        
+        if not patterns:
+            raise ValueError("No valid search terms found in target expression")
+        
+        # Prepare original patterns for display
+        original_patterns = []
+        for part in target_expression.split('|'):
+            part = part.strip()
+            original_patterns.append(part[1:-1].strip() if part.startswith('"') and part.endswith('"') else part)
+        
+        video_data = self.prepare_video_data(txt_files, video_metadata)
+        video_data = self.apply_filters(video_data, filters)
+        
+        # Reset word tracking
+        self.all_words_in_filtered_set.clear()
+        self.unique_words_in_filtered_set.clear()
+        
+        # Analysis variables
+        total_counts = defaultdict(int)
+        stats_data = self.init_stats_data()
+        
+        for video in video_data:
+            self.analyze_video_specific(video, original_patterns, patterns, total_counts, stats_data)
+        
+        # Calculate global word ranks
+        self.calculate_global_word_ranks()
+        
+        # Apply sorting and match filtering
+        video_data = self.apply_match_filter(video_data, filters)
+        video_data = self.sort_videos(video_data, sort_options)
+        
+        # Generate stats
+        stats = self.generate_specific_stats(video_data, total_counts, target_expression, stats_data)
+        
+        return {
+            'videos': video_data,
+            'stats': stats,
+            'status_message': self.generate_status_message(stats, total_counts, target_expression)
+        }
+    
+    def run_regex_analysis(self, txt_files, video_metadata, pattern, filters, sort_options):
+        """Run regex pattern analysis"""
+        try:
+            regex = re.compile(pattern, re.IGNORECASE)
+        except re.error as e:
+            raise ValueError(f"Invalid regex pattern: {str(e)}")
+        
+        video_data = self.prepare_video_data(txt_files, video_metadata)
+        video_data = self.apply_filters(video_data, filters)
+        
+        # Reset word tracking
+        self.all_words_in_filtered_set.clear()
+        self.unique_words_in_filtered_set.clear()
+        
+        stats_data = self.init_stats_data()
+        total_matches = 0
+        
+        for video in video_data:
+            matches = self.analyze_video_regex(video, regex, stats_data)
+            total_matches += matches
+        
+        # Apply sorting and match filtering
+        video_data = self.apply_match_filter(video_data, filters)
+        video_data = self.sort_videos(video_data, sort_options)
+        
+        # Generate stats
+        stats = self.generate_regex_stats(video_data, total_matches, stats_data)
+        
+        return {
+            'videos': video_data,
+            'stats': stats,
+            'status_message': f"Found {total_matches} total matches. ({stats['match_percentage']:.2f}% of all words), "
+                            f"{stats['matches_per_min']:.2f} per minute average. "
+                            f"{stats['videos_with_matches']} of {stats['total_videos']} videos have matches "
+                            f"({stats['match_video_percentage']:.2f}%)"
+        }
+    
+    def prepare_video_data(self, txt_files, video_metadata):
+        """Prepare video data structure"""
+        video_data = []
+        
+        for txt_file in txt_files:
+            video_id = extract_video_id(os.path.basename(txt_file))
+            meta = next((v for v in video_metadata if v['id'] == video_id), None) if video_id else None
+            
+            video_data.append({
+                'txt_file': txt_file,
+                'name': os.path.splitext(os.path.basename(txt_file))[0],
+                'id': video_id,
+                'match_count': 0,
+                'title': meta.get('title', os.path.splitext(os.path.basename(txt_file))[0]) if meta else os.path.splitext(os.path.basename(txt_file))[0],
+                'upload_date': meta.get('upload_date', '') if meta else '',
+                'duration': meta.get('duration', 0) if meta else 0,
+                'channel_name': meta.get('channel_name', '') if meta else '',
+                'url': meta.get('url', '') if meta else ''
+            })
+        
+        return video_data
+    
+    def apply_filters(self, video_data, filters):
+        """Apply various filters to video data"""
+        filtered = video_data.copy()
+        
+        # Text filters
+        for field, filter_key in [('title', 'title'), ('channel_name', 'channel')]:
+            if filter_value := filters.get(filter_key):
+                terms = process_search_query(filter_value, mode="general")
+                filtered = [v for v in filtered if matches_search_terms(v.get(field, ''), terms)]
+        
+        # Content filter
+        if content_filter := filters.get('content'):
+            content_terms = process_search_query(content_filter, mode="general")
+            filtered = [v for v in filtered if self.check_content_matches(v, content_terms)]
+        
+        # Date filters
+        for date_field, filter_key in [('date_from', '>='), ('date_to', '<=')]:
+            if date_value := filters.get(date_field):
+                if not is_valid_date(date_value):
+                    raise ValueError(f"Invalid date format: {date_value}")
+                date_clean = date_value.replace("-", "")
+                if filter_key == '>=':
+                    filtered = [v for v in filtered if v.get('upload_date', '') >= date_clean]
+                else:
+                    filtered = [v for v in filtered if v.get('upload_date', '') <= date_clean]
+        
+        # Duration filters
+        for dur_field in ['duration_min', 'duration_max']:
+            if dur_value := filters.get(dur_field):
+                try:
+                    dur_seconds = hms_to_seconds(dur_value)
+                    if 'min' in dur_field:
+                        filtered = [v for v in filtered if v.get('duration', 0) >= dur_seconds]
+                    else:
+                        filtered = [v for v in filtered if v.get('duration', 0) <= dur_seconds]
+                except ValueError:
+                    raise ValueError(f"Invalid duration format: {dur_value}")
+        
+        return filtered
+    
+    def apply_match_filter(self, videos, filters):
+        """Apply match count filter"""
+        if not filters.get('match_filter_value'):
+            return videos
+            
+        try:
+            count = int(filters['match_filter_value'])
+            filter_type = filters.get('match_filter_type', 'any')
+            
+            filter_funcs = {
+                ">": lambda v: v.get('match_count', 0) > count,
+                "<": lambda v: v.get('match_count', 0) < count,
+                "=": lambda v: v.get('match_count', 0) == count,
+                "≥": lambda v: v.get('match_count', 0) >= count,
+                "≤": lambda v: v.get('match_count', 0) <= count
+            }
+            
+            if filter_type in filter_funcs:
+                return [v for v in videos if filter_funcs[filter_type](v)]
+            
+            return videos
+        except ValueError:
+            raise ValueError("Invalid match count value (must be integer)")
+    
+    def sort_videos(self, videos, sort_options):
+        """Sort videos based on options"""
+        reverse = (sort_options.get('direction') == "desc")
+        sort_key = sort_options.get('sort_by', 'title')
+        
+        key_funcs = {
+            "date": lambda x: x.get('upload_date', ''),
+            "duration": lambda x: x.get('duration', 0),
+            "matches": lambda x: x.get('match_count', 0),
+            "matches_min": lambda x: x.get('matches_per_minute', 0),
+            "match_percent": lambda x: x.get('match_percentage', 0),
+            "title": lambda x: x.get('title', '').lower()
+        }
+        
+        return sorted(videos, key=key_funcs.get(sort_key, key_funcs["title"]), reverse=reverse)
+    
+    def check_content_matches(self, video, content_terms):
+        """Check if video content matches search terms"""
+        try:
+            with open(video['txt_file'], 'r', encoding='utf-8') as f:
+                content = f.read()
+            return matches_search_terms(content, content_terms)
+        except Exception:
+            return False
+    
+    def init_stats_data(self):
+        """Initialize statistics tracking data"""
+        return {
+            'total_words': 0,
+            'total_duration': 0,
+            'videos_with_matches': 0,
+            'total_words_matched': 0,
+            'channel_stats': defaultdict(lambda: {
+                'total_matches': 0, 'total_videos': 0, 
+                'total_words': 0, 'total_duration': 0
+            }),
+            'matches_by_month': {},
+            'videos_by_month': {},
+            'matched_videos_by_month': {},
+            'duration_by_month': {}
+        }
+    
+    def analyze_video_specific(self, video, original_patterns, patterns, total_counts, stats_data):
+        """Analyze a single video for specific word matches"""
+        with open(video['txt_file'], 'r', encoding='utf-8') as f:
+            content = f.read().lower()
+        
+        duration = video['duration'] or 1
+        words = content.split()
+        word_count = len(words)
+        
+        # Update tracking
+        stats_data['total_words'] += word_count
+        stats_data['total_duration'] += duration
+        
+        for word in words:
+            self.all_words_in_filtered_set[word] += 1
+            self.unique_words_in_filtered_set.add(word)
+        
+        # Calculate word ranks for this video
+        word_counts = defaultdict(int)
+        for word in words:
+            word_counts[word] += 1
+        
+        sorted_words = sorted(word_counts.items(), key=lambda x: (-x[1], x[0]))
+        word_ranks = self.calculate_word_ranks(sorted_words)
+        
+        # Find matches
+        match_count = 0
+        counts = {}
+        
+        for orig, pattern in zip(original_patterns, patterns):
+            try:
+                is_partial = not (orig.startswith('"') and orig.endswith('"'))
+                
+                if is_partial:
+                    count = len(re.findall(r'\b' + pattern + r'\b', content, re.IGNORECASE))
+                else:
+                    exact = orig[1:-1].lower() if orig.startswith('"') and orig.endswith('"') else orig.lower()
+                    count = words.count(exact)
+                
+                counts[orig] = {
+                    'count': count,
+                    'rank': word_ranks.get(orig.replace('+', '').replace('*', ''), 'N/A'),
+                    'is_partial': is_partial
+                }
+                total_counts[orig] += count
+                match_count += count
+            except re.error:
+                continue
+        
+        # Update video data
+        video.update({
+            'match_count': match_count,
+            'word_counts': counts,
+            'total_words': word_count,
+            'duration': duration,
+            'matches_per_minute': match_count / (duration / 60) if duration > 0 else 0,
+            'match_percentage': (match_count / word_count * 100) if word_count > 0 else 0,
+            'word_ranks': word_ranks
+        })
+        
+        # Update stats
+        if match_count > 0:
+            stats_data['videos_with_matches'] += 1
+            stats_data['total_words_matched'] += word_count
+        
+        self.update_monthly_stats(video, match_count, duration, stats_data)
+        self.update_channel_stats(video, match_count, word_count, duration, stats_data)
+    
+    def analyze_video_regex(self, video, regex, stats_data):
+        """Analyze a single video for regex matches"""
+        with open(video['txt_file'], 'r', encoding='utf-8') as f:
+            content = f.read()
+        
+        duration = video['duration'] or 1
+        words = content.split()
+        word_count = len(words)
+        
+        # Update global tracking
+        stats_data['total_words'] += word_count
+        stats_data['total_duration'] += duration
+        
+        for word in words:
+            self.all_words_in_filtered_set[word] += 1
+            self.unique_words_in_filtered_set.add(word)
+        
+        # Find matches
+        matches = regex.finditer(content)
+        match_count = 0
+        counter = defaultdict(int)
+        
+        for match in matches:
+            match_count += 1
+            counter[match.group(0).lower()] += 1
+        
+        # Update video data
+        video.update({
+            'match_count': match_count,
+            'match_details': sorted(counter.items(), key=lambda x: (-x[1], x[0])),
+            'total_words': word_count,
+            'duration': duration,
+            'matches_per_minute': match_count / (duration / 60) if duration > 0 else 0,
+            'match_percentage': (match_count / word_count * 100) if word_count > 0 else 0
+        })
+        
+        # Update stats
+        if match_count > 0:
+            stats_data['videos_with_matches'] += 1
+            stats_data['total_words_matched'] += word_count
+        
+        self.update_monthly_stats(video, match_count, duration, stats_data)
+        self.update_channel_stats(video, match_count, word_count, duration, stats_data)
+        
+        return match_count
+    
+    def calculate_word_ranks(self, sorted_words):
+        """Calculate word ranks from sorted word list"""
+        word_ranks = {}
+        current_rank = 1
+        prev_count = None
+        
+        for idx, (word, count) in enumerate(sorted_words, 1):
+            if count != prev_count:
+                current_rank = idx
+            word_ranks[word] = current_rank
+            prev_count = count
+        
+        return word_ranks
+    
+    def calculate_global_word_ranks(self):
+        """Calculate global word ranks"""
+        if not self.all_words_in_filtered_set:
+            return
+        
+        sorted_words = sorted(self.all_words_in_filtered_set.items(), key=lambda x: (-x[1], x[0]))
+        self.global_word_ranks = self.calculate_word_ranks(sorted_words)
+    
+    def update_monthly_stats(self, video, match_count, duration, stats_data):
+        """Update monthly statistics"""
+        if not video.get('upload_date'):
+            return
+        
+        year = video['upload_date'][:4]
+        month = video['upload_date'][4:6]
+        
+        for stat_dict in ['matches_by_month', 'videos_by_month', 'matched_videos_by_month', 'duration_by_month']:
+            if year not in stats_data[stat_dict]:
+                stats_data[stat_dict][year] = defaultdict(int)
+        
+        stats_data['matches_by_month'][year][month] += match_count
+        stats_data['videos_by_month'][year][month] += 1
+        stats_data['duration_by_month'][year][month] += duration
+        
+        if match_count > 0:
+            stats_data['matched_videos_by_month'][year][month] += 1
+    
+    def update_channel_stats(self, video, match_count, word_count, duration, stats_data):
+        """Update channel statistics"""
+        channel = video.get('channel_name', 'Unknown').lower()
+        channel_stat = stats_data['channel_stats'][channel]
+        
+        channel_stat['total_matches'] += match_count
+        channel_stat['total_videos'] += 1
+        channel_stat['total_words'] += word_count
+        channel_stat['total_duration'] += duration
+    
+    def generate_specific_stats(self, video_data, total_counts, target_expression, stats_data):
+        """Generate statistics for specific analysis"""
+        total_matches = sum(total_counts.values())
+        total_videos = len(video_data)
+        
+        # Calculate averages
+        matched_duration = sum(v.get('duration', 0) for v in video_data if v.get('match_count', 0) > 0)
+        avg_duration_matched = matched_duration / stats_data['videos_with_matches'] if stats_data['videos_with_matches'] > 0 else 0
+        avg_duration_all = stats_data['total_duration'] / total_videos if total_videos > 0 else 0
+        
+        # Generate channel leaderboard
+        channel_leaderboard = self.generate_channel_leaderboard(stats_data['channel_stats'])
+        
+        # Calculate matches per minute by month
+        avg_matches_per_min_by_month = self.calculate_monthly_match_rates(stats_data)
+        
+        return {
+            'mode': 'specific',
+            'word_counts': dict(total_counts),
+            'total_matches': total_matches,
+            'match_percentage': (total_matches / stats_data['total_words'] * 100) if stats_data['total_words'] > 0 else 0,
+            'matches_per_min': total_matches / (stats_data['total_duration'] / 60) if stats_data['total_duration'] > 0 else 0,
+            'videos_with_matches': stats_data['videos_with_matches'],
+            'total_videos': total_videos,
+            'match_video_percentage': (stats_data['videos_with_matches'] / total_videos * 100) if total_videos > 0 else 0,
+            'avg_matches_all': total_matches / total_videos if total_videos > 0 else 0,
+            'avg_matches_matched': total_matches / stats_data['videos_with_matches'] if stats_data['videos_with_matches'] > 0 else 0,
+            'avg_words_all': stats_data['total_words'] / total_videos if total_videos > 0 else 0,
+            'avg_words_matched': stats_data['total_words_matched'] / stats_data['videos_with_matches'] if stats_data['videos_with_matches'] > 0 else 0,
+            'avg_duration_all': seconds_to_hms(avg_duration_all),
+            'avg_duration_matched': seconds_to_hms(avg_duration_matched),
+            'channel_leaderboard': channel_leaderboard,
+            'global_word_ranks': self.global_word_ranks,
+            'matches_by_year_month': stats_data['matches_by_month'],
+            'videos_by_year_month': stats_data['videos_by_month'],
+            'matched_videos_by_year_month': stats_data['matched_videos_by_month'],
+            'avg_matches_per_min_by_year_month': avg_matches_per_min_by_month,
+            # Add the totals for the status message
+            'stats_total_duration': stats_data['total_duration'],
+            'stats_total_words': stats_data['total_words']
+        }
+
+    def generate_regex_stats(self, video_data, total_matches, stats_data):
+        """Generate statistics for regex analysis"""
+        total_videos = len(video_data)
+        
+        # Calculate averages
+        matched_duration = sum(v.get('duration', 0) for v in video_data if v.get('match_count', 0) > 0)
+        avg_duration_matched = matched_duration / stats_data['videos_with_matches'] if stats_data['videos_with_matches'] > 0 else 0
+        avg_duration_all = stats_data['total_duration'] / total_videos if total_videos > 0 else 0
+        
+        # Generate channel leaderboard
+        channel_leaderboard = self.generate_channel_leaderboard(stats_data['channel_stats'])
+        
+        # Calculate matches per minute by month
+        avg_matches_per_min_by_month = self.calculate_monthly_match_rates(stats_data)
+        
+        return {
+            'mode': 'regex',
+            'total_matches': total_matches,
+            'match_percentage': (total_matches / stats_data['total_words'] * 100) if stats_data['total_words'] > 0 else 0,
+            'matches_per_min': total_matches / (stats_data['total_duration'] / 60) if stats_data['total_duration'] > 0 else 0,
+            'videos_with_matches': stats_data['videos_with_matches'],
+            'total_videos': total_videos,
+            'match_video_percentage': (stats_data['videos_with_matches'] / total_videos * 100) if total_videos > 0 else 0,
+            'avg_matches_all': total_matches / total_videos if total_videos > 0 else 0,
+            'avg_matches_matched': total_matches / stats_data['videos_with_matches'] if stats_data['videos_with_matches'] > 0 else 0,
+            'avg_words_all': stats_data['total_words'] / total_videos if total_videos > 0 else 0,
+            'avg_words_matched': stats_data['total_words_matched'] / stats_data['videos_with_matches'] if stats_data['videos_with_matches'] > 0 else 0,
+            'avg_duration_all': seconds_to_hms(avg_duration_all),
+            'avg_duration_matched': seconds_to_hms(avg_duration_matched),
+            'channel_leaderboard': channel_leaderboard,
+            'matches_by_year_month': stats_data['matches_by_month'],
+            'videos_by_year_month': stats_data['videos_by_month'],
+            'matched_videos_by_year_month': stats_data['matched_videos_by_month'],
+            'avg_matches_per_min_by_year_month': avg_matches_per_min_by_month,
+            # Add the totals for the status message
+            'stats_total_duration': stats_data['total_duration'],
+            'stats_total_words': stats_data['total_words']
+        }
+        
+    def generate_channel_leaderboard(self, channel_stats):
+        """Generate channel leaderboard"""
+        if len(channel_stats) <= 1:
+            return None
+        
+        leaderboard = []
+        for channel, stats in channel_stats.items():
+            if stats['total_videos'] > 0:
+                leaderboard.append({
+                    'channel': channel,
+                    'total_matches': stats['total_matches'],
+                    'matches_per_video': stats['total_matches'] / stats['total_videos'],
+                    'matches_per_min': stats['total_matches'] / (stats['total_duration'] / 60) if stats['total_duration'] > 0 else 0,
+                    'match_percentage': (stats['total_matches'] / stats['total_words'] * 100) if stats['total_words'] > 0 else 0
+                })
+        
+        if not leaderboard:
+            return None
+        
+        return {
+            'most_matches': max(leaderboard, key=lambda x: x['total_matches']),
+            'most_per_video': max(leaderboard, key=lambda x: x['matches_per_video']),
+            'most_per_min': max(leaderboard, key=lambda x: x['matches_per_min']),
+            'most_percentage': max(leaderboard, key=lambda x: x['match_percentage'])
+        }
+    
+    def calculate_monthly_match_rates(self, stats_data):
+        """Calculate average matches per minute by month"""
+        avg_matches_per_min = defaultdict(lambda: defaultdict(float))
+        
+        for year in stats_data['matches_by_month']:
+            for month in stats_data['matches_by_month'][year]:
+                duration_minutes = stats_data['duration_by_month'][year][month] / 60
+                if duration_minutes > 0:
+                    avg_matches_per_min[year][month] = stats_data['matches_by_month'][year][month] / duration_minutes
+        
+        return avg_matches_per_min
+    
+    def generate_status_message(self, stats, total_counts, target_expression):
+        """Generate status message for specific analysis"""
+        # Create ordered count display
+        ordered_counts = []
+        for term in target_expression.split('|'):
+            term = term.strip()
+            key = term[1:-1].strip() if term.startswith('"') and term.endswith('"') else term
+            ordered_counts.append(f"{term}: {total_counts.get(key, 0)}")
+        
+        total_text = "TOTAL COUNTS: " + ", ".join(ordered_counts)
+        
+        return (f"{total_text}\n{stats['total_matches']} occurrences ({stats['match_percentage']:.2f}% of all words), "
+                f"{stats['matches_per_min']:.2f} per minute average  "
+                f"{stats['videos_with_matches']} of {stats['total_videos']} videos have matches "
+                f"({stats['match_video_percentage']:.2f}%)\n"
+                f"Stats of entire set: Total duration: {seconds_to_hms(stats['stats_total_duration'])}, "
+                f"Total words: {stats['stats_total_words']}")
