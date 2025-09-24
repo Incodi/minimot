@@ -6,8 +6,5 @@ Currently this project only has a main application and a downloader application.
 
 The downloader application downloads video subtitles and video metadata from a channel or playlist of choice.
 
-This data can be used in the analyzer.
+This data can be used in the analyzers.
 
-I am currently working on the analyzer tool and is not in this repository. A mostly-working version is not public yet.
-
-The debug tool helps in finding missing subtitle files in case there is an error in the downloader.
