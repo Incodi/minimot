@@ -1,0 +1,351 @@
+import tkinter as tk
+from tkinter import ttk, messagebox
+import os, json, webbrowser, random
+from collections import defaultdict
+from datetime import datetime
+from searchhelper import (
+    hms_to_seconds, seconds_to_hms, is_valid_date, process_search_query, 
+    matches_search_terms, check_requirements, extract_video_id
+)
+from ana_core import anacore
+
+
+class Analyzer(tk.Toplevel):
+    def __init__(self, master):
+        super().__init__(master)
+        self.title("Analyzer")
+        self.geometry("1600x1000")
+        self.video_metadata = []
+        self.analyzer = anacore()
+        check_requirements()
+        self.setup_ui()
+        
+    def setup_ui(self):
+        self.mainframe = ttk.Frame(self, padding=10)
+        self.mainframe.grid(column=0, row=0, sticky="nsew")
+        self.columnconfigure(0, weight=1)
+        self.rowconfigure(0, weight=1)
+        
+        self.create_left_panel()
+        self.create_right_panel()
+        self.create_results_tree()
+        self.create_bottom_controls()
+        
+    def create_left_panel(self):
+        left = ttk.Frame(self.mainframe)
+        left.grid(column=0, row=0, sticky="nsew", padx=10)
+        
+        ttk.Label(left, text="Folder name (Channel handle or Playlist ID)").grid(column=0, row=0, sticky="w", pady=(0,5))
+        self.url_entry = ttk.Entry(left, width=60)
+        self.url_entry.grid(column=0, row=1, sticky="we", pady=(0,10))
+        
+        # Buttons and options
+        btn_frame = ttk.Frame(left)
+        btn_frame.grid(column=0, row=2, sticky="w", pady=(0,10))
+        
+        ttk.Button(btn_frame, text="Convert VTTs", command=self.convert_vtt_to_txt).pack(side="left", padx=5)
+        ttk.Button(btn_frame, text="Edit Stopwords", command=self.edit_stopwords).pack(side="left", padx=5)
+        
+        self.use_stopwords = tk.BooleanVar(value=False)
+        self.no_punctuation = tk.BooleanVar(value=False)
+        ttk.Checkbutton(btn_frame, text="Use Stopwords", variable=self.use_stopwords).pack(side="left", padx=5)
+        ttk.Checkbutton(btn_frame, text="No Punctuation", variable=self.no_punctuation).pack(side="left", padx=5)
+        
+        # Analysis mode
+        ttk.Label(left, text="Analysis Mode:").grid(column=0, row=3, sticky="w", pady=(10,5))
+        self.analysis_mode = tk.StringVar(value="specific")
+        mode_frame = ttk.Frame(left)
+        mode_frame.grid(column=0, row=4, sticky="w", pady=(0,10))
+        ttk.Radiobutton(mode_frame, text="Count words with regex", variable=self.analysis_mode, value="regex").pack(side="left", padx=5)
+        ttk.Radiobutton(mode_frame, text="Search for specific words", variable=self.analysis_mode, value="specific").pack(side="left", padx=5)
+        
+        ttk.Label(left, text="Target Expression:").grid(column=0, row=5, sticky="w", pady=(10,5))
+        self.words_entry = ttk.Entry(left, width=70)
+        self.words_entry.grid(column=0, row=6, sticky="we", pady=(0,20))
+        
+    def create_right_panel(self):
+        right = ttk.Frame(self.mainframe)
+        right.grid(column=1, row=0, sticky="nsew", padx=10)
+        
+        filter_frame = ttk.LabelFrame(right, text="Filters", padding=10)
+        filter_frame.pack(fill="both", expand=True)
+        
+        # Text filters
+        filters = [("Title Contains:", "title_filter"), ("Channel Name:", "channel_filter"), ("Content Contains:", "content_filter")]
+        for label, var_name in filters:
+            frame = ttk.Frame(filter_frame)
+            frame.pack(fill="x", pady=(0,10))
+            ttk.Label(frame, text=label).pack(side="left")
+            entry = ttk.Entry(frame)
+            entry.pack(side="left", expand=True, fill="x", padx=5)
+            setattr(self, var_name, entry)
+        
+        self.create_sort_controls(filter_frame)
+        self.create_filter_controls(filter_frame)
+        
+    def create_sort_controls(self, parent):
+        sort_frame = ttk.Frame(parent)
+        sort_frame.pack(fill="x", pady=(0,10))
+        ttk.Label(sort_frame, text="Sort by:").pack(side="left")
+        
+        self.sort_var = tk.StringVar(value="title")
+        self.sort_direction = tk.StringVar(value="desc")
+        
+        # Direction buttons
+        sort_dir_frame = ttk.Frame(sort_frame)
+        sort_dir_frame.pack(side="right")
+        ttk.Radiobutton(sort_dir_frame, text="↑", variable=self.sort_direction, value="desc").pack(side="left")
+        ttk.Radiobutton(sort_dir_frame, text="↓", variable=self.sort_direction, value="asc").pack(side="left")
+        
+        # Sort options
+        sort_options = [("title", "Title"), ("date", "Date"), ("duration", "Duration"),
+                       ("matches", "Matches"), ("matches_min", "Matches/Min"), ("match_percent", "Match %")]
+        for val, text in sort_options:
+            ttk.Radiobutton(sort_frame, text=text, variable=self.sort_var, value=val).pack(side="left", padx=5)
+    
+    def create_filter_controls(self, parent):
+        # Date and match filters
+        date_match_frame = ttk.Frame(parent)
+        date_match_frame.pack(fill="x", pady=(0,10))
+        
+        # Date filters
+        date_frame = ttk.Frame(date_match_frame)
+        date_frame.pack(side="left", expand=True, fill="x")
+        ttk.Label(date_frame, text="Date Range:").pack(side="left")
+        
+        for label, var in [("From:", "date_from"), ("To:", "date_to")]:
+            frame = ttk.Frame(date_frame)
+            frame.pack(side="left", padx=(5,0))
+            ttk.Label(frame, text=label).pack(side="left")
+            entry = ttk.Entry(frame, width=10)
+            entry.pack(side="left")
+            setattr(self, var, entry)
+
+        # Match count filter
+        match_frame = ttk.Frame(date_match_frame)
+        match_frame.pack(side="right", padx=(10,0))
+        ttk.Label(match_frame, text="Matches:").pack(side="left")
+        self.match_filter_type = tk.StringVar(value="any")
+        ttk.OptionMenu(match_frame, self.match_filter_type, "any", "any", ">", "<", "=", "≥", "≤").pack(side="left", padx=5)
+        self.match_filter_value = ttk.Entry(match_frame, width=8)
+        self.match_filter_value.pack(side="left")
+        
+        # Duration filter
+        dur_frame = ttk.Frame(parent)
+        dur_frame.pack(fill="x")
+        ttk.Label(dur_frame, text="Duration:").pack(side="left")
+        
+        for label, var in [("Min:", "duration_min"), ("Max:", "duration_max")]:
+            ttk.Label(dur_frame, text=label).pack(side="left", padx=(5,0))
+            entry = ttk.Entry(dur_frame, width=8)
+            entry.pack(side="left")
+            setattr(self, var, entry)
+            ttk.Label(dur_frame, text="(HH:MM:SS)").pack(side="left", padx=(0,5))
+        
+    def create_results_tree(self):
+        self.tree = ttk.Treeview(self.mainframe, columns=('details', 'duration', 'date'), height=15)
+        self.tree.grid(column=0, row=8, columnspan=2, sticky="nsew")
+        
+        # Configure columns
+        columns = [('#0', 'Video', 0), ('details', 'Details', 500), ('duration', 'Duration', 100), ('date', 'Date', 100)]
+        for col, text, width in columns:
+            self.tree.column(col, width=width, anchor="w", stretch=(col == '#0'))
+            self.tree.heading(col, text=text)
+            
+        self.tree.bind("<Double-1>", self.on_tree_double_click)
+
+        # Scrollbar
+        vsb = ttk.Scrollbar(self.mainframe, orient="vertical", command=self.tree.yview)
+        self.tree.configure(yscrollcommand=vsb.set)
+        vsb.grid(column=2, row=8, sticky='ns')
+
+        # Grid weights
+        self.mainframe.columnconfigure(0, weight=1)
+        self.mainframe.columnconfigure(1, weight=3)
+        self.mainframe.columnconfigure(2, weight=0)  
+        self.mainframe.rowconfigure(8, weight=1)
+        
+    def create_bottom_controls(self):
+        bottom_frame = ttk.Frame(self.mainframe)
+        bottom_frame.grid(column=0, row=9, columnspan=2, sticky="w", pady=(0,20))
+        
+        buttons = [("Run Analysis", self.run_analysis), ("Show Full Stats", self.show_full_stats), ("Random Video", self.show_random_video)]
+        for text, command in buttons:
+            ttk.Button(bottom_frame, text=text, command=command).pack(side="left", padx=5)
+        
+        self.status_var = tk.StringVar()
+        ttk.Label(self.mainframe, textvariable=self.status_var).grid(column=0, row=10, columnspan=2, sticky="w")
+
+    def show_random_video(self):
+        items = self.tree.get_children() # MAY TAKE A WHILE FOR THE TREE TO PASS ITEMS
+        if not items:
+            messagebox.showinfo("Random Video", "No videos in the current view")
+            return
+
+        item_text = self.tree.item(random.choice(items), 'text')
+        for video in self.video_metadata:
+            if f"{video.get('title', '')} - {video.get('channel_name', '')}" == item_text:
+                if url := video.get('url'):
+                    webbrowser.open(url)
+                    return
+                
+        messagebox.showinfo("Random Video", "No URL found")
+
+    def on_tree_double_click(self, event):
+        if not (selection := self.tree.selection()):
+            return
+            
+        item_text = self.tree.item(selection[0], 'text')
+        for video in self.video_metadata:
+            if f"{video.get('title', '')} - {video.get('channel_name', '')}" == item_text:
+                webbrowser.open(video.get('url', ''))
+                return
+
+    def edit_stopwords(self):
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        path = os.path.join(root, "data", "input", "stopwords.txt")
+        
+        if not os.path.exists(path):
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, 'w') as f:
+                f.write("# Default stopwords\nthe\nand\nto\nof\na\nin\nis\nit\nyou\nthat\n")
+        
+        if os.name == 'nt':
+            os.startfile(path)
+        else:
+            os.system(f'open "{path}"')
+
+    def convert_vtt_to_txt(self):
+        handle = self.url_entry.get().strip() # DIRECTORY NAME (CHANNEL OR PLAYLIST ID)
+        if not handle: # USER MUST PUT A VALID DIRECTORY
+            messagebox.showerror("Error", "Please enter a channel handle or playlist ID")
+            return
+        
+        try:
+            result = self.analyzer.convert_vtt_files(handle, self.use_stopwords.get(), self.no_punctuation.get())
+            self.txt_files = result['txt_files']
+            self.vtt_files = result['vtt_files']
+            self.video_metadata = result['metadata']
+            self.status_var.set(f"Converted {len(self.txt_files)} VTT files to TXT")
+        except Exception as e:
+            messagebox.showerror("Error", str(e))
+
+    def run_analysis(self):
+        if not hasattr(self, 'txt_files') or not self.txt_files: # USER MUST CLICK CONVERT VTTS FIRST
+            messagebox.showerror("Error", "Please convert VTT files first!")
+            return
+        
+        target = self.words_entry.get().strip()
+        if not target:
+            messagebox.showerror("Error", "Please enter target expression!")
+            return
+        
+        try:
+            # Get filter values
+            filters = {
+                'title': self.title_filter.get().strip(),
+                'channel': self.channel_filter.get().strip(), 
+                'content': self.content_filter.get().strip(),
+                'date_from': self.date_from.get().strip(),
+                'date_to': self.date_to.get().strip(),
+                'duration_min': self.duration_min.get().strip(),
+                'duration_max': self.duration_max.get().strip(),
+                'match_filter_type': self.match_filter_type.get(),
+                'match_filter_value': self.match_filter_value.get().strip()
+            }
+            
+            sort_options = {
+                'sort_by': self.sort_var.get(),
+                'direction': self.sort_direction.get()
+            }
+            
+            # Run analysis
+            if self.analysis_mode.get() == "specific":
+                results = self.analyzer.run_specific_analysis(self.txt_files, self.video_metadata, target, filters, sort_options)
+            else:
+                results = self.analyzer.run_regex_analysis(self.txt_files, self.video_metadata, target, filters, sort_options)
+            
+            self.display_results(results)
+            
+        except Exception as e:
+            messagebox.showerror("Error", f"Analysis failed: {str(e)}")
+
+    def display_results(self, results):
+        self.tree.delete(*self.tree.get_children())
+        
+        for video in results['videos']:
+            self.add_video_to_tree(video)
+        
+        # Store results for stats
+        self.current_stats = results['stats']
+        self.status_var.set(results['status_message'])
+
+    def add_video_to_tree(self, video):
+        dur_str = seconds_to_hms(video.get('duration', 0))
+        date = video.get('upload_date', '')
+        if date and len(date) == 8 and '-' not in date:
+            date = f"{date[:4]}-{date[4:6]}-{date[6:8]}"
+        
+        # Add main video entry
+        total_matches = video.get('match_count', 0)
+        words = video.get('total_words', 1)
+        dur = video.get('duration', 1)
+        
+        pct = (total_matches / words * 100) if words > 0 else 0
+        wpm = total_matches / (dur / 60) if dur > 0 else 0
+        
+        self.tree.insert('', 'end', 
+                        text=f"{video['title']} - {video.get('channel_name', '')}", 
+                        values=(f"TOTAL MATCHES: {total_matches} times ({pct:.2f}%), {wpm:.2f} per minute", dur_str, date))
+        
+        # Add details based on analysis type
+        if 'word_counts' in video:
+            self.add_specific_details(video, words, dur)
+        elif 'match_details' in video:
+            self.add_regex_details(video, words, dur)
+
+    def add_specific_details(self, video, words, dur):
+        word_counts = video['word_counts']
+        
+        # Sort exact matches by count, keep partials in order
+        exact_matches = [(word, data) for word, data in word_counts.items() if not data['is_partial']]
+        exact_matches.sort(key=lambda x: (-x[1]['count'], x[0]))
+        partial_matches = [(word, data) for word, data in word_counts.items() if data['is_partial']]
+        
+        for word, data in exact_matches + partial_matches:
+            cnt = data['count']
+            if data['is_partial']:
+                text = f"{word}: {cnt} times"
+            else:
+                rank = data['rank']
+                pct = (cnt / words * 100) if words > 0 else 0
+                wpm = cnt / (dur / 60) if dur > 0 else 0
+                text = f"{word}: {cnt} times ({pct:.2f}%), {wpm:.2f} per minute, rank #{rank}"
+            
+            self.tree.insert('', 'end', text="", values=(text, "", ""))
+
+    def add_regex_details(self, video, words, dur):
+        for match, count in video['match_details'][:10]:  # Show top 10
+            pct = (count / words * 100) if words > 0 else 0
+            wpm = count / (dur / 60) if dur > 0 else 0
+            text = f"{match}: {count} times ({pct:.2f}%), {wpm:.2f} per minute"
+            self.tree.insert('', 'end', text="", values=(text, "", ""))
+
+    def show_full_stats(self):
+        if not hasattr(self, 'current_stats'):
+            return
+        
+        from ana_gui import anagui
+        anagui(self, self.current_stats, getattr(self, 'analyzer', None))
+
+
+if __name__ == "__main__":
+    class StandaloneApp(tk.Tk):
+        def __init__(self):
+            super().__init__()
+            self.analyzer = Search(self)
+    
+    app = StandaloneApp()
+    app.mainloop()
+
+    # python3 src/analyzer.py
