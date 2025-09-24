@@ -1,0 +1,490 @@
+import tkinter as tk
+from tkinter import ttk, messagebox
+import os
+import matplotlib.pyplot as plt
+from collections import defaultdict
+from datetime import datetime
+from searchhelper import seconds_to_hms
+
+try:
+    from wordcloud import WordCloud
+    from PIL import Image
+    import numpy as np
+    WORDCLOUD_AVAILABLE = True
+except ImportError:
+    WORDCLOUD_AVAILABLE = False
+
+
+class anagui:
+    
+    def __init__(self, parent, stats, analyzer):
+        self.popup = tk.Toplevel(parent)
+        self.popup.title("Full Statistics")
+        self.popup.geometry("1600x1000")
+        self.stats = stats
+        self.analyzer = analyzer
+        self.setup_window()
+    
+    def setup_window(self):
+        main_frame = ttk.Frame(self.popup)
+        main_frame.pack(fill="both", expand=True, padx=10, pady=10)
+
+        text = tk.Text(main_frame, wrap=tk.WORD, height=30)
+        text.pack(fill="x")
+        
+        self.populate_stats_text(text)
+        
+        word_frame = ttk.Frame(main_frame)
+        word_frame.pack(fill="both", expand=True, pady=(10, 0))
+
+        scrollbar = ttk.Scrollbar(word_frame)
+        scrollbar.pack(side="right", fill="y")
+
+        word_text = tk.Text(word_frame, wrap=tk.WORD, yscrollcommand=scrollbar.set, font=('Courier New', 10))
+        word_text.pack(fill="both", expand=True)
+        scrollbar.config(command=word_text.yview)
+        
+        self.populate_word_list(word_text)
+        
+        self.create_buttons(main_frame)
+
+        text.config(state="disabled")
+        word_text.config(state="disabled")
+    
+    def create_buttons(self, parent):
+        btn_frame = ttk.Frame(parent)
+        btn_frame.pack(fill="x", pady=(10, 0))
+        
+        copy_btn = ttk.Button(btn_frame, text="Copy Words (Text Only)", command=self.copy_words)
+        copy_btn.pack(side="left", padx=5)
+        
+        if WORDCLOUD_AVAILABLE:
+            wc_btn = ttk.Button(btn_frame, text="Generate Word Cloud", command=self.generate_word_cloud)
+            wc_btn.pack(side="left", padx=5)
+        
+        yearly_btn = ttk.Button(btn_frame, text="Show Yearly Graphs", command=self.show_yearly_graphs)
+        yearly_btn.pack(side="left", padx=5)
+        
+        monthly_btn = ttk.Button(btn_frame, text="Show Monthly Graphs", command=self.show_monthly_graphs)
+        monthly_btn.pack(side="left", padx=5)
+        
+        close_btn = ttk.Button(btn_frame, text="Close", command=self.popup.destroy)
+        close_btn.pack(side="right", padx=5)
+    
+    def populate_stats_text(self, text):
+        text.insert(tk.END, "=== FULL STATISTICS ===\n\n", "title")
+        
+        if self.stats['mode'] == "specific":
+            self.add_specific_stats(text)
+        else:
+            self.add_regex_stats(text)
+        
+        self.add_channel_stats(text)
+        self.add_temporal_stats(text)
+        
+        text.tag_config("title", font=('Arial', 14, 'bold'))
+        text.tag_config("header", font=('Arial', 12, 'bold'))
+    
+    def add_specific_stats(self, text):
+        text.insert(tk.END, "WORD COUNTS:\n", "header")
+        for word, count in self.stats['word_counts'].items():
+            rank = self.stats['global_word_ranks'].get(word, 'N/A')
+            text.insert(tk.END, f"{word}: {count} (rank #{rank} overall)\n")
+        
+        text.insert(tk.END, "\nSUMMARY:\n", "header")
+        self._add_common_stats(text)
+    
+    def add_regex_stats(self, text):
+        text.insert(tk.END, "SUMMARY:\n", "header")
+        self._add_common_stats(text)
+    
+    def _add_common_stats(self, text):
+        s = self.stats
+        stats_lines = [
+            f"Total occurrences: {s.get('total_matches', 0)}",
+            f"Percentage of all words: {s.get('match_percentage', 0):.2f}%",
+            f"Matches per minute average: {s.get('matches_per_min', 0):.2f}",
+            f"Videos with matches: {s.get('videos_with_matches', 0)} of {s.get('total_videos', 0)} ({s.get('match_video_percentage', 0):.2f}%)",
+            f"Average matches per video: {s.get('avg_matches_all', 0):.1f} (all videos)",
+            f"Average matches in matched videos: {s.get('avg_matches_matched', 0):.1f}",
+            f"Average words per video: {s.get('avg_words_all', 0):.1f} (all videos)",
+            f"Average words in matched videos: {s.get('avg_words_matched', 0):.1f}",
+        ]
+        
+        if s.get('videos_with_matches', 0) > 0:
+            total_words_matched = s.get('avg_words_matched', 0) * s.get('videos_with_matches', 0)
+            stats_lines.append(f"Total words in matched videos: {total_words_matched:.0f}")
+        
+        stats_lines.extend([
+            f"Average duration: {s.get('avg_duration_all', '0:00:00')} (all videos)",
+            f"Average duration in matched videos: {s.get('avg_duration_matched', '0:00:00')}"
+        ])
+        
+        for line in stats_lines:
+            text.insert(tk.END, f"{line}\n")
+    
+    def add_channel_stats(self, text):
+        """Add channel leaderboard statistics"""
+        if not self.stats.get('channel_leaderboard'):
+            return
+        
+        text.insert(tk.END, "\nCHANNEL LEADERBOARD:\n", "header")
+        
+        leaderboard_items = [
+            ("Most total matches", 'most_matches', 'total_matches', ""),
+            ("Most matches per video", 'most_per_video', 'matches_per_video', ""),
+            ("Most matches per minute", 'most_per_min', 'matches_per_min', ""),
+            ("Highest match percentage", 'most_percentage', 'match_percentage', "%")
+        ]
+        
+        for title, key, metric, suffix in leaderboard_items:
+            if key in self.stats['channel_leaderboard']:
+                channel_data = self.stats['channel_leaderboard'][key]
+                value = channel_data[metric]
+                formatted_value = f"{value:.1f}{suffix}" if suffix else str(int(value))
+                text.insert(tk.END, f"\n{title}:\n")
+                text.insert(tk.END, f"{channel_data['channel']}: {formatted_value}\n")
+    
+    def add_temporal_stats(self, text):
+        if not self.stats.get('matches_by_year_month'):
+            return
+        
+        text.insert(tk.END, "\nYEARLY STATISTICS:\n", "header")
+        
+        for year in sorted(self.stats['matches_by_year_month'].keys()):
+            yearly_stats = self.calculate_yearly_stats(year)
+            
+            text.insert(tk.END, f"\n{year}:\n")
+            for stat_line in yearly_stats:
+                text.insert(tk.END, f"{stat_line}\n")
+        
+        text.insert(tk.END, "\nMONTHLY STATISTICS:\n", "header")
+        
+        for year in sorted(self.stats['matches_by_year_month'].keys()):
+            text.insert(tk.END, f"\n{year}:\n")
+            
+            for month in sorted(self.stats['matches_by_year_month'][year].keys()):
+                monthly_stats = self.calculate_monthly_stats(year, month)
+                text.insert(tk.END, f"{monthly_stats}\n")
+                
+                if 'avg_matches_per_min_by_year_month' in self.stats:
+                    avg = self.stats['avg_matches_per_min_by_year_month'][year].get(month, 0)
+                    text.insert(tk.END, f"  Avg matches per minute: {avg:.2f}\n")
+    
+    def calculate_yearly_stats(self, year):
+        total_matches = sum(self.stats['matches_by_year_month'][year].values())
+        total_vids = sum(self.stats['videos_by_year_month'][year].values())
+        total_matched = sum(self.stats['matched_videos_by_year_month'][year].values())
+        rate = (total_matched / total_vids * 100) if total_vids > 0 else 0
+        
+        total_duration_seconds = sum(self.stats.get('duration_by_year_month', {}).get(year, {}).values()) or total_vids * 600  # fallback estimate
+        matches_per_min = (total_matches / (total_duration_seconds / 60)) if total_duration_seconds > 0 else 0
+        
+        return [
+            f"Total matches: {total_matches}",
+            f"Total videos: {total_vids}",
+            f"Videos with matches: {total_matched} ({rate:.1f}%)",
+            f"Avg matches per minute: {matches_per_min:.2f}"
+        ]
+    
+    def calculate_monthly_stats(self, year, month):
+        month_name = datetime.strptime(month, "%m").strftime("%B")
+        matches = self.stats['matches_by_year_month'][year][month]
+        vids = self.stats['videos_by_year_month'][year][month]
+        matched = self.stats['matched_videos_by_year_month'][year][month]
+        rate = (matched / vids * 100) if vids > 0 else 0
+        
+        return f"{month_name}: {matches} matches in {vids} videos ({rate:.1f}% match rate)"
+    
+    def populate_word_list(self, word_text):
+        if not hasattr(self.analyzer, 'all_words_in_filtered_set') or not self.analyzer.all_words_in_filtered_set:
+            word_text.insert(tk.END, "No word data available.")
+            return
+        
+        total = sum(self.analyzer.all_words_in_filtered_set.values())
+        unique = len(self.analyzer.unique_words_in_filtered_set)
+        
+        word_text.insert(tk.END, f"Total words: {total}\n")
+        word_text.insert(tk.END, f"Unique words: {unique}\n")
+        word_text.insert(tk.END, f"Unique word ratio: {unique/total:.2%}\n\n")
+        
+        top_words = sorted(self.analyzer.all_words_in_filtered_set.items(), key=lambda x: (-x[1], x[0]))[:1000]
+        
+        self.top_words_list = []
+        current_rank = 1
+        prev_count = None
+        
+        word_text.insert(tk.END, "TOP 1000 WORDS:\n\n", "header")
+        
+        for idx, (word, count) in enumerate(top_words, 1):
+            if count != prev_count:
+                current_rank = idx
+            
+            self.top_words_list.append(word)
+            pct = (count / total * 100) if total > 0 else 0
+            word_text.insert(tk.END, f"{current_rank:4}. {word:<20} {count:>6} ({pct:.2f}%)\n")
+            prev_count = count
+    
+    def copy_words(self):
+        if hasattr(self, 'top_words_list'):
+            self.popup.clipboard_clear()
+            self.popup.clipboard_append("\n".join(self.top_words_list))
+            messagebox.showinfo("Copied", f"Copied {len(self.top_words_list)} words to clipboard")
+        else:
+            messagebox.showwarning("Warning", "No word list available to copy")
+    
+    def generate_word_cloud(self):
+        if not WORDCLOUD_AVAILABLE:
+            messagebox.showerror("Error", "WordCloud library not available")
+            return
+            
+        if not hasattr(self.analyzer, 'all_words_in_filtered_set') or not self.analyzer.all_words_in_filtered_set:
+            messagebox.showerror("Error", "No word data available")
+            return
+        
+        try:
+            root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            mask_path = os.path.join(root, "data", "cat.png")
+            
+            mask = None
+            if os.path.exists(mask_path):
+                try:
+                    mask = np.array(Image.open(mask_path))
+                except Exception:
+                    pass  
+            
+            wordcloud = WordCloud(
+                width=800, height=600, 
+                background_color='white', 
+                max_words=200,
+                colormap='viridis', 
+                normalize_plurals=True, 
+                mask=mask
+            ).generate_from_frequencies(self.analyzer.all_words_in_filtered_set)
+            
+            plt.figure(figsize=(12, 8))
+            plt.imshow(wordcloud, interpolation='bilinear')
+            plt.axis("off")
+            plt.title("Word Cloud of Most Frequent Words")
+            plt.show()
+            
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to generate word cloud: {str(e)}")
+    
+    def show_yearly_graphs(self):
+        if not self.stats.get('matches_by_year_month'):
+            messagebox.showwarning("Warning", "No yearly data available to graph")
+            return
+        
+        try:
+            self.create_yearly_plots()
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to create yearly graphs: {str(e)}")
+    
+    def show_monthly_graphs(self):
+        if not self.stats.get('matches_by_year_month'):
+            messagebox.showwarning("Warning", "No monthly data available to graph")
+            return
+        
+        try:
+            self.create_monthly_plots()
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to create monthly graphs: {str(e)}")
+    
+    def create_yearly_plots(self):
+        years = sorted(self.stats['matches_by_year_month'].keys())
+        if not years:
+            return
+        
+        yearly_data = self.aggregate_yearly_data(years)
+        
+        fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(14, 12))
+        fig.suptitle('Yearly Statistics', fontsize=16)
+        
+        self.plot_yearly_data(ax1, ax2, ax3, ax4, years, yearly_data)
+        
+        plt.tight_layout()
+        plt.show()
+    
+    def create_monthly_plots(self):
+        years = sorted(self.stats['matches_by_year_month'].keys())
+        if not years:
+            return
+        
+        monthly_data = self.prepare_monthly_data(years)
+        
+        fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(16, 12))
+        fig.suptitle('Monthly Statistics', fontsize=16)
+        
+        self.plot_monthly_data(ax1, ax2, ax3, ax4, monthly_data)
+        
+        plt.tight_layout()
+        plt.show()
+    
+    def aggregate_yearly_data(self, years):
+        matches = defaultdict(int)
+        videos = defaultdict(int)
+        matched_videos = defaultdict(int)
+        
+        for year in years:
+            for month in self.stats['matches_by_year_month'][year]:
+                matches[year] += self.stats['matches_by_year_month'][year][month]
+                videos[year] += self.stats['videos_by_year_month'][year][month]
+                matched_videos[year] += self.stats['matched_videos_by_year_month'][year][month]
+        
+        rates = {year: (matched_videos[year] / videos[year] * 100) if videos[year] > 0 else 0 for year in years}
+        
+        matches_per_min = {}
+        for year in years:
+            total_duration_minutes = sum(self.stats.get('duration_by_year_month', {}).get(year, {}).values()) or videos[year] * 10  # fallback: 10 min avg
+            if isinstance(total_duration_minutes, (int, float)) and total_duration_minutes > 0:
+                total_duration_minutes /= 60  
+                matches_per_min[year] = matches[year] / total_duration_minutes
+            else:
+                matches_per_min[year] = 0
+        
+        return {
+            'matches': [matches[y] for y in years],
+            'videos': [videos[y] for y in years],
+            'matched_videos': [matched_videos[y] for y in years],
+            'rates': [rates[y] for y in years],
+            'matches_per_min': [matches_per_min[y] for y in years]
+        }
+    
+    def prepare_monthly_data(self, years):
+        all_months = []
+        matches = []
+        videos = []
+        matched_videos = []
+        match_rates = []
+        matches_per_min = []
+        
+        month_names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+        
+        for year in years:
+            for month in sorted(self.stats['matches_by_year_month'][year].keys()):
+                all_months.append(f"{month_names[int(month)-1]} {year}")
+                matches.append(self.stats['matches_by_year_month'][year][month])
+                videos.append(self.stats['videos_by_year_month'][year][month])
+                matched_videos.append(self.stats['matched_videos_by_year_month'][year][month])
+                match_rates.append((matched_videos[-1] / videos[-1] * 100) if videos[-1] > 0 else 0)
+                matches_per_min.append(self.stats['avg_matches_per_min_by_year_month'][year].get(month, 0))
+        
+        return {
+            'months': all_months,
+            'matches': matches,
+            'videos': videos,
+            'matched_videos': matched_videos,
+            'match_rates': match_rates,
+            'matches_per_min': matches_per_min
+        }
+
+    def plot_yearly_data(self, ax1, ax2, ax3, ax4, years, data):
+        bars1 = ax1.bar(years, data['matches'], color='#ffa1f1')
+        ax1.grid(color='#95a5a6', linestyle='--', linewidth=1, axis='y', alpha=0.3)
+        ax1.set(
+            title='Matches by Year',
+            xlabel='Year',
+            ylabel='Number of Matches',
+            xticks=years
+        )
+        
+        ax1.bar_label(bars1, label_type='edge')
+        
+        width = 0.35
+        x = np.arange(len(years))
+        bars2 = ax2.bar(x - width/2, data['videos'], width, label='Total Videos', color='#f8c8dc')
+        bars3 = ax2.bar(x + width/2, data['matched_videos'], width, label='Videos with Matches', color='#a2d2ff')
+
+        ax2.bar_label(bars2)
+        ax2.bar_label(bars3)
+
+        ax2.grid(color='#95a5a6', linestyle='--', linewidth=1, axis='y', alpha=0.3)
+        ax2.set(
+            title='Videos by Year',
+            xlabel='Year',
+            ylabel='Number of Videos',
+            xticks=x,
+            xticklabels=years
+        )
+        ax2.legend()
+
+        bars4 = ax3.bar(years, data['rates'], color='#bde0fe')
+        ax3.grid(color='#95a5a6', linestyle='--', linewidth=1, axis='y', alpha=0.3)
+        ax3.set(
+            title='Match Rate by Year',
+            xlabel='Year',
+            ylabel='Percentage of Videos with Matches',
+            ylim=(0, 100),
+            xticks=years
+        )
+
+        ax3.bar_label(bars4, fmt='%.1f%%')
+        
+        lines = ax4.plot(years, data['matches_per_min'], marker='o', color='#cdb4db')
+        ax4.grid(color='#95a5a6', linestyle='--', linewidth=1, axis='y', alpha=0.3)
+        ax4.set(
+            title='Matches per Minute by Year',
+            xlabel='Year',
+            ylabel='Matches per Minute',
+            xticks=years
+        )
+        
+        for line in lines:
+            for x, y in zip(line.get_xdata(), line.get_ydata()):
+                ax4.text(x, y, f"{y:.2f}", ha='center', va='bottom')
+
+    def plot_monthly_data(self, ax1, ax2, ax3, ax4, data):
+        months = data['months']
+        x = np.arange(len(months))
+        
+        bars1 = ax1.bar(x, data['matches'], color='#ffa1f1')
+        ax1.grid(color='#95a5a6', linestyle='--', linewidth=1, axis='y', alpha=0.3)
+        ax1.set(
+            title='Matches by Month',
+            xlabel='Month',
+            ylabel='Number of Matches',
+            xticks=x,
+            xticklabels=months
+        )
+        ax1.tick_params(axis='x', rotation=45, labelsize=5)
+        ax1.bar_label(bars1)
+        
+        width = 0.35
+        bars2 = ax2.bar(x - width/2, data['videos'], width, label='Total Videos', color='#f8c8dc')
+        bars3 = ax2.bar(x + width/2, data['matched_videos'], width, label='Videos with Matches', color='#a2d2ff')
+        ax2.grid(color='#95a5a6', linestyle='--', linewidth=1, axis='y', alpha=0.3)
+        ax2.set(
+            title='Videos by Month',
+            xlabel='Month',
+            ylabel='Number of Videos',
+            xticks=x,
+            xticklabels=months
+        )
+        ax2.tick_params(axis='x', rotation=45, labelsize=5)
+        ax2.legend()
+        ax2.bar_label(bars2)
+        ax2.bar_label(bars3)
+        
+        lines1 = ax3.plot(x, data['match_rates'], marker='o', color='#bde0fe')
+        ax3.grid(color='#95a5a6', linestyle='--', linewidth=1, axis='y', alpha=0.3)
+        ax3.set(
+            title='Match Rate by Month',
+            xlabel='Month',
+            ylabel='Percentage of Videos with Matches',
+            ylim=(0, 100),
+            xticks=x,
+            xticklabels=months
+        )
+        ax3.tick_params(axis='x', rotation=45, labelsize=5)
+        
+        lines2 = ax4.plot(x, data['matches_per_min'], marker='o', color='#cdb4db')
+        ax4.grid(color='#95a5a6', linestyle='--', linewidth=1, axis='y', alpha=0.3)
+        ax4.set(
+            title='Matches per Minute by Month',
+            xlabel='Month',
+            ylabel='Matches per Minute',
+            xticks=x,
+            xticklabels=months
+        )
+        ax4.tick_params(axis='x', rotation=45, labelsize=5)
