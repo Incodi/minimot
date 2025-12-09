@@ -1,6 +1,5 @@
 import re
 from datetime import datetime
-from collections import defaultdict
 from importlib.metadata import distributions
 import subprocess
 import sys
@@ -197,6 +196,7 @@ def matches_search_terms(text, terms, mode="general"):
     return False
 
 def check_single_group(text, group):
+    # First check all include conditions (must all be present)
     for phrase in group['phrases']:
         if phrase not in text:
             return False
@@ -215,15 +215,22 @@ def check_single_group(text, group):
         if not re.search(r'\b' + re.escape(term) + r'\b', text):
             return False
     
-    for exclude_type, term in group['exclude']:
-        if exclude_type == 'phrase':
-            if term in text:
-                return False
-        else: 
-            if re.search(r'\b' + re.escape(term) + r'\b', text):
-                return False
+    if group['exclude']:
+        all_exclusions_present = True
+        for exclude_type, term in group['exclude']:
+            if exclude_type == 'phrase':
+                if term not in text:
+                    all_exclusions_present = False
+                    break
+            else:
+                if not re.search(r'\b' + re.escape(term) + r'\b', text):
+                    all_exclusions_present = False
+                    break
+        
+        if all_exclusions_present:
+            return False
     
-    return True  
+    return True
 
 def check_requirements():
     required = {'wordcloud', 'matplotlib', 'pillow', 'numpy', 'pytube', 'webvtt-py'}
