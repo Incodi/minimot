@@ -1,5 +1,4 @@
 # minimot
-
 <br>I love data and I love Youtube, so this is a passion project.
 
 <br>run by cd'ing to the minimot directory and putting this command:
