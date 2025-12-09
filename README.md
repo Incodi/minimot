@@ -5,7 +5,7 @@
 <br>run by cd'ing to the minimot directory and putting this command:
 <br>python src/app.py
 
-<br>This is a currently wonky program that can:
+<br>This is a currently (very) wonky program that can:
 <br>Count how many times a word or phrase appeared in a Youtuber's or Playlist's transcripts. (ana)
 <br>Count the first words or words of any position, to find the most common ones. (first_ana)
 <br>Visualize these counts.
@@ -20,8 +20,9 @@ The downloader application downloads video subtitles and video metadata from a c
 <br>This data can be used in the analyzers. 
 
 <br>I want to improve on it after learning techniques in class. 
-<br>Maybe add an ML-like funcitonality where the program can predict what Youtuber a transcript is from after seeing two different bags of words and their counts from two different Youtubers.
-<br>Maybe add a sentiment analysis function.
+
+We implemented MTLD, spaCy embedding variance (EmbVar), MATTR sorting to the minimot search, and glued it together with help from AI tools. 
+However it now has errors for the status bar of the application, which we will try to fix in before the next big commit.
 
 <br>For integrity, I did use AI pair programming for this project, especially for the programs with the ana suffix on it.
-I learned from this that "vibe coding" truly does not work and one needs to understand the program to code with AI tools.
+AI was used to debug but not organize the structure of the project. 
