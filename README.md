@@ -21,7 +21,8 @@ The downloader application downloads video subtitles and video metadata from a c
 TODO: make a better downloader, do whatever to make it better due to the high importance of the tool!
 <br>Like in batch cleaning and batch updating/downloading. 
 <br>These batch processes should be implemented carefully. 
-<br>Maybe use BOTH human programming and AI pair programming for debugging, due to the fact that one unseen error can mess up so much data.
+<br>Maybe use BOTH human programming and AI pair programming for debugging, due to the fact that one unseen error can mess up so much data. 
+<br> > good practice for that, batch metadata is easy to implement w/o AI, it uses the same functions as regular downloading, but depreciated features.
 
 <br>I want to improve on it after learning techniques in class. 
 
