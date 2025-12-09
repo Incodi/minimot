@@ -18,10 +18,12 @@ The downloader application downloads video subtitles and video metadata from a c
 
 <br>This data can be used in the analyzers. 
 
-<br>I want to improve on it after learning techniques in class. 
+TODO: make a better downloader, do whatever to make it better due to the high importance of the tool!
+Like in batch cleaning and batch updating/downloading. 
+These batch processes should be implemented carefully. 
+Maybe use BOTH human programming and AI pair programming for debugging, due to the fact that one error can mess up so much data.
 
-We implemented MTLD, spaCy embedding variance (EmbVar), MATTR sorting to the minimot search, and glued it together with help from AI tools. 
-However it now has errors for the status bar of the application, which we will try to fix in before the next big commit.
+<br>I want to improve on it after learning techniques in class. 
 
 <br>For integrity, I did use AI pair programming for this project, especially for the programs with the ana suffix on it.
 AI was used to debug but not organize the structure of the project. 
