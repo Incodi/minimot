@@ -1,28 +1,30 @@
 # minimot
-<br>I love data and I love Youtube, so this is a passion project.
 
-<br>run by cd'ing to the minimot directory and putting this command:
-<br>python src/app.py
+A passion project for analyzing YouTube transcripts.
 
-<br>This is a currently (very) wonky program that can:
-<br>Count how many times a word or phrase appeared in a Youtuber's or Playlist's transcripts. (ana)
-<br>Count the first words or words of any position, to find the most common ones. (first_ana)
-<br>Visualize these counts.
-<br>Download transcripts en masse. (dloader) 
+## Getting Started
 
-The downloader application downloads video subtitles and video metadata from a channel or playlist of choice.
-<br>It gets all metadata of the video, like view counts and duration
-<br>It is the most wonkiest part of this application as it uses yt-dlp and constantly freezes during downloading.
-<br>A way to circumvent the freezing is to close the entire program and run it again. 
-<br>The program will save and track the already downloaded data so the program does not need to download it again.
+Navigate to the minimot directory and run:
 
-<br>This data can be used in the analyzers. 
+## Features
 
-TODO: make a better downloader, do whatever to make it better due to the high importance of the tool!
-<br>Like in batch cleaning and batch updating/downloading. 
-<br>These batch processes should be implemented carefully. 
+### Analyzer (`ana`)
+Counts how many times a word or phrase appears across a YouTuber's or playlist's transcripts. Supports exact matches, partial matches, regex, and wildcards, with filtering by title, channel, date, and duration.
 
-<br>I want to improve on it after learning techniques in class. 
+### Position Analyzer (`first_ana`)
+Finds the most common word at any position across transcripts, like first word, last word, nth word, etc. Results can be visualized as bar charts, pie charts, treemaps, or word clouds.
 
-<br>For integrity, I did use AI pair programming for this project, especially for the programs with the ana suffix on it.
-AI was used to debug but not organize the structure of the project. 
+### Downloader (`dloader`)
+Downloads subtitles and metadata (title, duration, view count, etc.) from a YouTube channel or playlist using `yt-dlp`. Progress is saved to disk, so interrupted downloads resume without re-fetching existing data.
+
+> **Important Note:** The downloader is the least stable component and may freeze during use. If this happens, close the program and rerun it, already-downloaded data will not be lost.
+
+## Roadmap
+
+- Improve downloader stability
+- Add batch cleaning and batch metadata update support
+- Making the application more stable and able to work on multiple systems
+
+## Notes on Development
+
+AI pair programming was used during development, primarily for debugging the analyzer modules (`ana`). Project structure was designed independently. 
