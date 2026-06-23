@@ -6,10 +6,6 @@ from searchhelper import (
     matches_search_terms, extract_video_id
 )
 
-
- #  holy moly this is complex
-
-
 class anacore:
     def __init__(self):
         self.all_words_in_filtered_set = defaultdict(int)
